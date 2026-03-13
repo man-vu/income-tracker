@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel hero-card">
+    <p class="hero-kicker">Category Budgeting</p>
+    <h1 class="headline">Budgets</h1>
+    <p class="subtle" style="margin-top:0.45rem;">Define category limits and map each one to Need, Want, or Future allocation.</p>
+
+    <div class="duo" style="margin-top:1rem;">
+        <div class="panel">
+            <h2 style="font-family:'Syne', sans-serif; font-size:1.45rem;">Add or Update Budget</h2>
+            <form method="post" class="form-grid" style="margin-top:0.7rem;">
+                {% csrf_token %}
+                {{ form.as_p }}
+                <button class="btn-main" type="submit">Save Budget</button>
+            </form>
+        </div>
+
+        <div class="panel">
+            <h2 style="font-family:'Syne', sans-serif; font-size:1.45rem;">Current Budgets</h2>
+            <div class="table-wrap" style="margin-top:0.7rem;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Monthly Limit</th>
+                            <th>Bucket</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for budget in budgets %}
+                        <tr>
+                            <td>{{ budget.category }}</td>
+                            <td>${{ budget.monthly_limit }}</td>
+                            <td>{{ budget.get_allocation_bucket_display }}</td>
+                            <td>
+                                <form method="post" action="{% url 'delete_budget' budget.id %}">
+                                    {% csrf_token %}
+                                    <button class="btn-danger-lite" type="submit">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4">No budgets set yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

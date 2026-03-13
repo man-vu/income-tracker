@@ -1,91 +1,329 @@
 {% extends "base.html" %}
 
 {% block content %}
-
-<div class="container mt-4">
-
-<h2 class="mb-4">SmartSpend Dashboard</h2>
-
-<div class="mb-3">
-<a href="{% url 'add_income' %}" class="btn btn-success">+ Add Income</a>
-<a href="{% url 'add_expense' %}" class="btn btn-danger">+ Add Expense</a>
-</div>
-
-<div class="row">
-
-<div class="col-md-4">
-<div class="card text-white bg-success mb-3">
-<div class="card-body">
-<h5 class="card-title">Total Income</h5>
-<h2>${{ total_income }}</h2>
-</div>
-</div>
-</div>
-
-<div class="col-md-4">
-<div class="card text-white bg-danger mb-3">
-<div class="card-body">
-<h5 class="card-title">Total Expense</h5>
-<h2>${{ total_expense }}</h2>
-</div>
-</div>
-</div>
-
-<div class="col-md-4">
-<div class="card text-white bg-primary mb-3">
-<div class="card-body">
-<h5 class="card-title">Savings</h5>
-<h2>${{ savings }}</h2>
-</div>
-</div>
-</div>
-
-</div>
-
-<hr>
-
-<h4>Recent Income</h4>
-<ul class="list-group mb-4">
-{% for income in recent_incomes %}
-<li class="list-group-item">
-+ {{ income.source }} — ${{ income.amount }}
-</li>
-{% empty %}
-<li class="list-group-item">No income yet</li>
-{% endfor %}
-</ul>
-
-<h4>Recent Expenses</h4>
-<ul class="list-group">
-{% for expense in recent_expenses %}
-<li class="list-group-item">
-- {{ expense.category }} — ${{ expense.amount }}
-</li>
-{% empty %}
-<li class="list-group-item">No expenses yet</li>
-{% endfor %}
-</ul>
-
-</div>
-<hr>
-
-<h4>Expense Breakdown</h4>
-
-<canvas id="expenseChart"></canvas>
-<script>
-
-const ctx = document.getElementById('expenseChart');
-
-new Chart(ctx, {
-    type: 'pie',
-    data: {
-        labels: {{ categories|safe }},
-        datasets: [{
-            label: 'Expenses',
-            data: {{ category_totals|safe }},
-        }]
+<style>
+    .hero {
+        display: grid;
+        grid-template-columns: 1.65fr 1fr;
+        gap: 1rem;
     }
-});
 
+    .hero-copy {
+        max-width: 62ch;
+    }
+
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.8rem;
+    }
+
+    .kpi {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 0.82rem;
+        background: rgba(255, 255, 255, 0.9);
+    }
+
+    .kpi h3 {
+        font-size: 0.73rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: 0.35rem;
+        color: var(--muted);
+    }
+
+    .kpi p {
+        margin: 0;
+        font-weight: 800;
+        font-size: clamp(1.25rem, 2.4vw, 1.9rem);
+    }
+
+    .num-good { color: var(--ok); }
+    .num-bad { color: var(--bad); }
+    .num-main { color: var(--brand); }
+
+    .section-grid {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr;
+        gap: 1rem;
+    }
+
+    .list {
+        display: grid;
+        gap: 0.6rem;
+        margin-top: 0.75rem;
+    }
+
+    .list-item {
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 12px;
+        padding: 0.7rem;
+        font-size: 0.9rem;
+    }
+
+    .split {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+    }
+
+    .progress-track {
+        height: 9px;
+        border-radius: 999px;
+        background: rgba(20, 184, 166, 0.15);
+        overflow: hidden;
+    }
+
+    .progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, var(--brand) 0%, var(--brand-soft) 100%);
+    }
+
+    .filter-row {
+        display: flex;
+        align-items: end;
+        flex-wrap: wrap;
+        gap: 0.7rem;
+    }
+
+    .filter-row select,
+    .filter-row button {
+        border: 1px solid var(--line);
+        border-radius: 11px;
+        padding: 0.5rem 0.6rem;
+        background: rgba(255, 255, 255, 0.9);
+        font-weight: 700;
+        font-family: inherit;
+    }
+
+    .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 0.2rem 0.55rem;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .pill-danger { background: rgba(185, 28, 28, 0.12); color: #7f1d1d; }
+    .pill-warn { background: rgba(234, 88, 12, 0.12); color: #9a3412; }
+
+    .forecast-value {
+        font-family: "Syne", sans-serif;
+        letter-spacing: -0.02em;
+        font-size: 2.15rem;
+        color: var(--brand);
+        margin-top: 0.15rem;
+    }
+
+    .dash-title {
+        font-family: "Syne", sans-serif;
+        font-size: 1.65rem;
+        letter-spacing: -0.02em;
+    }
+
+    @media (max-width: 900px) {
+        .hero,
+        .section-grid,
+        .split,
+        .kpi-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="page-wrap">
+<section class="hero">
+    <div class="panel hero-card">
+        <p class="hero-kicker">Financial Radar</p>
+        <h1 class="headline">Budget Drift Detection</h1>
+        <p class="subtle hero-copy" style="margin-top: 0.55rem;">
+            Live view of spending velocity, budget pressure, unusual transactions, and month-end forecast.
+        </p>
+
+        <form method="get" class="filter-row" style="margin-top: 1rem;">
+            <div>
+                <label for="month" class="subtle">Month</label><br>
+                <select id="month" name="month">
+                    {% for item in monthly_options %}
+                    <option value="{{ item.value }}" {% if item.value == month %}selected{% endif %}>{{ item.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="year" class="subtle">Year</label><br>
+                <select id="year" name="year">
+                    {% for item in year_options %}
+                    <option value="{{ item }}" {% if item == year %}selected{% endif %}>{{ item }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit">Apply</button>
+        </form>
+
+        <form method="post" action="{% url 'import_dataset' %}" class="filter-row" style="margin-top: 0.75rem;">
+            {% csrf_token %}
+            <input type="hidden" name="clear_existing" value="0">
+            <button type="submit">Import BudgetWise Dataset</button>
+        </form>
+        <form method="post" action="{% url 'import_dataset' %}" class="filter-row" style="margin-top: 0.45rem;">
+            {% csrf_token %}
+            <input type="hidden" name="clear_existing" value="1">
+            <button type="submit">Replace Current Data With Dataset</button>
+        </form>
+    </div>
+
+    <div class="panel hero-card">
+        <p class="subtle">Forecast</p>
+        <p class="forecast-value">${{ forecast.projected_total }}</p>
+        <p class="subtle">Projected expense by month end</p>
+        <p class="subtle" style="margin-top:0.55rem;">
+            Days tracked: {{ forecast.days_elapsed }} / {{ forecast.days_in_month }}
+        </p>
+        {% if backtest.avg_abs_error_pct %}
+        <p class="subtle">Backtest avg abs error: {{ backtest.avg_abs_error_pct }}% over {{ backtest.months_tested }} month(s)</p>
+        {% else %}
+        <p class="subtle">Backtest unavailable (need more history)</p>
+        {% endif %}
+    </div>
+</section>
+
+<section class="panel">
+    <div class="kpi-grid">
+        <div class="kpi">
+            <h3>Total Income</h3>
+            <p class="num-good">${{ total_income }}</p>
+        </div>
+        <div class="kpi">
+            <h3>Total Expense</h3>
+            <p class="num-bad">${{ total_expense }}</p>
+        </div>
+        <div class="kpi">
+            <h3>Net Savings</h3>
+            <p class="num-main">${{ savings }}</p>
+        </div>
+    </div>
+</section>
+
+<section class="section-grid">
+    <div class="panel">
+        <h2 class="dash-title">Category Breakdown</h2>
+        <canvas id="expenseChart" style="margin-top:0.7rem; max-height: 320px;"></canvas>
+    </div>
+    <div class="panel">
+        <h2 class="dash-title">Budget Alerts</h2>
+        <div class="list">
+            {% for alert in budget_alerts %}
+            <div class="list-item">
+                <strong>{{ alert.category }}</strong><br>
+                ${{ alert.spent }} / ${{ alert.limit }}
+                {% if alert.is_exceeded %}
+                <span class="pill pill-danger">Exceeded</span>
+                {% elif alert.ratio > 0.8 %}
+                <span class="pill pill-warn">Near Limit</span>
+                {% endif %}
+            </div>
+            {% empty %}
+            <div class="list-item">No budgets yet. Add category limits from the Budgets page.</div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<section class="split">
+    <div class="panel">
+        <h2 class="dash-title">Needs / Wants / Future</h2>
+        <div class="list">
+            <div class="list-item"><strong>Need:</strong> ${{ allocations.need.amount }} ({{ allocations.need.ratio }}%)</div>
+            <div class="list-item"><strong>Want:</strong> ${{ allocations.want.amount }} ({{ allocations.want.ratio }}%)</div>
+            <div class="list-item"><strong>Future:</strong> ${{ allocations.future.amount }} ({{ allocations.future.ratio }}%)</div>
+        </div>
+    </div>
+    <div class="panel">
+        <h2 class="dash-title">Unusual Transactions</h2>
+        <div class="list">
+            {% for item in anomalies %}
+            <div class="list-item">
+                <strong>${{ item.amount }}</strong> · {{ item.category }}{% if item.merchant %} · {{ item.merchant }}{% endif %}<br>
+                <span class="subtle">{{ item.date }} · z={{ item.z_score }}</span>
+            </div>
+            {% empty %}
+            <div class="list-item">No anomalies detected from current history.</div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<section class="split">
+    <div class="panel">
+        <h2 class="dash-title">Savings Goals</h2>
+        <div class="list">
+            {% for goal in goals %}
+            <div class="list-item">
+                <div style="display:flex; justify-content:space-between; gap:0.75rem; align-items:center;">
+                    <strong>{{ goal.name }}</strong>
+                    <span class="subtle">Due {{ goal.deadline }}</span>
+                </div>
+                <div class="subtle">${{ goal.current }} / ${{ goal.target }} · Monthly target ${{ goal.monthly_goal }}</div>
+                <div class="progress-track" style="margin-top:0.45rem;">
+                    <div class="progress-bar" style="width: {{ goal.progress_pct }}%;"></div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="list-item">No goals yet. Add one from the Goals page.</div>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="panel">
+        <h2 class="dash-title">Recent Activity</h2>
+        <div class="list">
+            {% for income in recent_incomes %}
+            <div class="list-item">+ {{ income.source }} · ${{ income.amount }} <span class="subtle">{{ income.date }}</span></div>
+            {% empty %}
+            <div class="list-item">No income entries.</div>
+            {% endfor %}
+            {% for expense in recent_expenses %}
+            <div class="list-item">- {{ expense.category }} · ${{ expense.amount }} <span class="subtle">{{ expense.date }}</span></div>
+            {% empty %}
+            <div class="list-item">No expense entries.</div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const chartElement = document.getElementById("expenseChart");
+if (chartElement) {
+    new Chart(chartElement, {
+        type: "doughnut",
+        data: {
+            labels: {{ categories|safe }},
+            datasets: [{
+                label: "Expenses",
+                data: {{ category_totals|safe }},
+                backgroundColor: ["#0f766e", "#14b8a6", "#99f6e4", "#ea580c", "#f59e0b", "#334155"],
+                borderColor: "#f8fbff",
+                borderWidth: 3,
+                hoverOffset: 8,
+            }]
+        },
+        options: {
+            plugins: {
+                legend: {
+                    position: "bottom",
+                    labels: { color: "#172032", font: { family: "Plus Jakarta Sans", weight: 700 } }
+                }
+            }
+        }
+    });
+}
 </script>
 {% endblock %}

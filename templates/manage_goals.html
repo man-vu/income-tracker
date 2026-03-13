@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel hero-card">
+    <p class="hero-kicker">Savings Planner</p>
+    <h1 class="headline">Goals</h1>
+    <p class="subtle" style="margin-top:0.45rem;">Create deadline-based targets and track progress with your monthly behavior.</p>
+
+    <div class="duo" style="margin-top:1rem;">
+        <div class="panel">
+            <h2 style="font-family:'Syne', sans-serif; font-size:1.45rem;">Add Goal</h2>
+            <form method="post" class="form-grid" style="margin-top:0.7rem;">
+                {% csrf_token %}
+                {{ form.as_p }}
+                <button class="btn-main" type="submit">Save Goal</button>
+            </form>
+        </div>
+
+        <div class="panel">
+            <h2 style="font-family:'Syne', sans-serif; font-size:1.45rem;">Current Goals</h2>
+            <div class="table-wrap" style="margin-top:0.7rem;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Progress</th>
+                            <th>Deadline</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for goal in goals %}
+                        <tr>
+                            <td>{{ goal.name }}</td>
+                            <td>${{ goal.current_amount }} / ${{ goal.target_amount }}</td>
+                            <td>{{ goal.deadline }}</td>
+                            <td>
+                                <form method="post" action="{% url 'delete_goal' goal.id %}">
+                                    {% csrf_token %}
+                                    <button class="btn-danger-lite" type="submit">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4">No goals created yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

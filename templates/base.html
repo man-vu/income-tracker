@@ -2,34 +2,390 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SmartSpend Tracker</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg: #f4f7fb;
+            --ink: #172032;
+            --muted: #647088;
+            --card: rgba(255, 255, 255, 0.78);
+            --line: rgba(23, 32, 50, 0.15);
+            --strong-line: rgba(23, 32, 50, 0.35);
+            --brand: #0f766e;
+            --brand-soft: #14b8a6;
+            --accent: #ea580c;
+            --ok: #0b8f65;
+            --bad: #b91c1c;
+            --shadow: 0 14px 36px rgba(11, 20, 38, 0.12);
+            --radius: 18px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Plus Jakarta Sans", sans-serif;
+            color: var(--ink);
+            background:
+                radial-gradient(circle at 8% 10%, rgba(20, 184, 166, 0.20) 0, transparent 28%),
+                radial-gradient(circle at 90% 10%, rgba(234, 88, 12, 0.18) 0, transparent 30%),
+                radial-gradient(circle at 90% 82%, rgba(15, 118, 110, 0.13) 0, transparent 34%),
+                repeating-linear-gradient(120deg, rgba(255, 255, 255, 0.45) 0 16px, rgba(241, 245, 251, 0.3) 16px 32px),
+                var(--bg);
+            min-height: 100vh;
+            animation: enter 420ms ease;
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background-image: radial-gradient(rgba(23, 32, 50, 0.08) 0.5px, transparent 0.5px);
+            background-size: 3px 3px;
+            opacity: 0.25;
+            z-index: -1;
+        }
+
+        @keyframes enter {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .shell {
+            width: min(1180px, 94vw);
+            margin: 1.35rem auto 2.2rem;
+        }
+
+        .topbar {
+            position: relative;
+            overflow: hidden;
+            border: 1px solid var(--strong-line);
+            border-radius: var(--radius);
+            background: linear-gradient(140deg, rgba(255, 255, 255, 0.94) 0%, rgba(235, 245, 248, 0.9) 58%, rgba(255, 246, 236, 0.9) 100%);
+            backdrop-filter: blur(6px);
+            box-shadow: var(--shadow);
+            padding: 0.9rem 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .topbar::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 210px;
+            height: 100%;
+            background: linear-gradient(125deg, var(--brand) 0%, var(--accent) 90%);
+            clip-path: polygon(30% 0, 100% 0, 100% 100%, 0 100%);
+            opacity: 0.2;
+            pointer-events: none;
+        }
+
+        .brand {
+            font-family: "Syne", sans-serif;
+            font-size: clamp(1.35rem, 2.8vw, 2rem);
+            color: var(--ink);
+            text-decoration: none;
+            letter-spacing: 0.02em;
+            line-height: 1;
+            font-weight: 800;
+            position: relative;
+            z-index: 2;
+        }
+
+        .brand span {
+            color: var(--brand);
+        }
+
+        .nav-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+            align-items: center;
+            justify-content: flex-end;
+            position: relative;
+            z-index: 2;
+        }
+
+        .btn-chip {
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.82);
+            color: var(--ink);
+            padding: 0.45rem 0.84rem;
+            border-radius: 999px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 0.82rem;
+            transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+        }
+
+        .btn-chip:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(15, 23, 42, 0.12);
+            background: #fff;
+        }
+
+        .btn-primary-chip {
+            background: linear-gradient(130deg, var(--brand) 0%, var(--brand-soft) 100%);
+            border-color: transparent;
+            color: #fff;
+        }
+
+        .panel {
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: var(--card);
+            backdrop-filter: blur(7px);
+            box-shadow: var(--shadow);
+            padding: 1.05rem;
+        }
+
+        .alerts {
+            margin: 1rem 0;
+            display: grid;
+            gap: 0.6rem;
+        }
+
+        .alert-msg {
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 0.68rem 0.85rem;
+            background: rgba(255, 255, 255, 0.92);
+            font-weight: 600;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+        }
+
+        .alert-success { border-left: 4px solid var(--ok); }
+        .alert-info { border-left: 4px solid #0284c7; }
+        .alert-danger { border-left: 4px solid var(--bad); }
+        .alert-warning { border-left: 4px solid var(--accent); }
+
+        h1, h2, h3 {
+            margin: 0;
+            line-height: 1.1;
+        }
+
+        .headline {
+            font-family: "Syne", sans-serif;
+            letter-spacing: -0.02em;
+            font-size: clamp(1.9rem, 4.8vw, 3.2rem);
+            font-weight: 800;
+        }
+
+        .subtle {
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        .form-grid {
+            display: grid;
+            gap: 0.9rem;
+        }
+
+        .form-grid p {
+            margin: 0;
+            display: grid;
+            gap: 0.4rem;
+        }
+
+        .form-grid label {
+            font-weight: 700;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #42506b;
+        }
+
+        .form-grid input,
+        .form-grid select,
+        .form-grid textarea {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 0.68rem 0.74rem;
+            font: inherit;
+            transition: border-color 120ms ease, box-shadow 120ms ease;
+        }
+
+        .form-grid input:focus,
+        .form-grid select:focus,
+        .form-grid textarea:focus {
+            outline: none;
+            border-color: var(--brand);
+            box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.16);
+        }
+
+        .form-grid ul.errorlist {
+            margin: 0;
+            padding-left: 1.1rem;
+            color: var(--bad);
+            font-weight: 600;
+        }
+
+        .btn-main {
+            border: none;
+            background: linear-gradient(125deg, var(--brand) 0%, var(--brand-soft) 100%);
+            color: #fff;
+            font-weight: 800;
+            border-radius: 12px;
+            padding: 0.7rem 1rem;
+            box-shadow: 0 14px 26px rgba(15, 118, 110, 0.24);
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: transform 120ms ease, box-shadow 120ms ease;
+        }
+
+        .btn-main:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 16px 26px rgba(15, 118, 110, 0.3);
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.92);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 0.66rem;
+            border-bottom: 1px solid rgba(23, 32, 50, 0.08);
+            font-size: 0.88rem;
+        }
+
+        th {
+            font-size: 0.76rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #4b5873;
+            background: rgba(243, 247, 255, 0.8);
+        }
+
+        .page-wrap {
+            margin-top: 1rem;
+            display: grid;
+            gap: 1rem;
+        }
+
+        .stack {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .duo {
+            display: grid;
+            grid-template-columns: 1fr 1.25fr;
+            gap: 1rem;
+        }
+
+        .hero-card {
+            padding: 1.2rem;
+        }
+
+        .hero-kicker {
+            font-size: 0.76rem;
+            text-transform: uppercase;
+            letter-spacing: 0.11em;
+            color: var(--brand);
+            font-weight: 800;
+            margin-bottom: 0.35rem;
+        }
+
+        .auth-card {
+            max-width: 720px;
+            margin: 1rem auto 0;
+        }
+
+        .btn-danger-lite {
+            border: 1px solid rgba(185, 28, 28, 0.4);
+            background: rgba(185, 28, 28, 0.08);
+            color: #7f1d1d;
+            border-radius: 10px;
+            padding: 0.42rem 0.68rem;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .btn-danger-lite:hover {
+            background: rgba(185, 28, 28, 0.15);
+        }
+
+        @media (max-width: 700px) {
+            .topbar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .nav-links {
+                justify-content: flex-start;
+            }
+
+            .duo {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 <body>
-<nav class="navbar navbar-dark bg-dark">
-    <div class="container">
-        <a class="navbar-brand" href="/">SmartSpend Tracker</a>
-        <div>
-            {% if user.is_authenticated %}
-            <!--<a class="btn btn-light" href="/add-income/">Add Income</a>-->
+    <div class="shell">
+        <nav class="topbar">
+            <a class="brand" href="/">SMART<span>SPEND</span></a>
+            <div class="nav-links">
+                {% if user.is_authenticated %}
+                <a class="btn-chip" href="/add-income/">Add Income</a>
+                <a class="btn-chip" href="/add-expense/">Add Expense</a>
+                <a class="btn-chip" href="/budgets/">Budgets</a>
+                <a class="btn-chip" href="/goals/">Goals</a>
+                <a class="btn-chip" href="/accounts/">Accounts</a>
+                <form action="/accounts/logout/" method="post" style="display:inline; margin:0;">
+                    {% csrf_token %}
+                    <button class="btn-chip btn-primary-chip" type="submit">Logout</button>
+                </form>
+                {% else %}
+                <a class="btn-chip" href="/accounts/login/">Login</a>
+                <a class="btn-chip btn-primary-chip" href="/register/">Register</a>
+                {% endif %}
+            </div>
+        </nav>
 
-            <form action="/accounts/logout/" method="post" style="display:inline;">
-                {% csrf_token %}
-                <button class="btn btn-danger">Logout</button>
-            </form>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-            {% else %}
-
-            <!--<a class="btn btn-success" href="accounts/login">Login</a>-->
-            <a class="btn btn-light" href="/register/">Register</a>
-            {% endif %}
+        {% if messages %}
+        <div class="alerts">
+            {% for message in messages %}
+            <div class="alert-msg alert-{{ message.tags|default:'info' }}">{{ message }}</div>
+            {% endfor %}
         </div>
-    </div>
-</nav>
-<div class="container mt-4">
+        {% endif %}
 
-    {% block content %}
-    {% endblock %}
-</div>
+        {% block content %}
+        {% endblock %}
+    </div>
+
+    {% block extra_js %}{% endblock %}
 </body>
 </html>

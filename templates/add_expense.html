@@ -1,14 +1,19 @@
 {% extends "base.html" %}
 
 {% block content %}
+<section class="panel hero-card auth-card">
+    <p class="hero-kicker">Expense Entry</p>
+    <h1 class="headline">Record New Expense</h1>
+    <p class="subtle" style="margin-top:0.45rem;">Detailed entries improve anomaly alerts and category-level budget insights.</p>
 
-<h2>Add Expense</h2>
-
-<form method="post">
-    {% csrf_token %}
-    {{ form.as_p }}
-
-    <button type="submit">Add Expense</button>
-</form>
+    <form method="post" class="form-grid" style="margin-top:1rem;">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <div style="display:flex; gap:0.6rem; flex-wrap:wrap; margin-top:0.35rem;">
+            <button type="submit" class="btn-main">Save Expense</button>
+            <a class="btn-chip" href="{% url 'dashboard' %}">Back to Dashboard</a>
+        </div>
+    </form>
+</section>
 
 {% endblock %}

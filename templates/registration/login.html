@@ -1,35 +1,24 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class = "container">
-    <div class="row justify-content-center mt-5">
-        <div class="col-md-4">
-            <div class="card shadow p-4">
-                <h3 class="text-center mb-4">SmartSpend Login</h3>
-                {% if messages %}
-                    {% for message in messages %}
-                    <div class="alert alert-danger">
-                        {{message}}
-                    </div>
-                    {% endfor %}
-                    {% endif %}
+<section class="panel hero-card auth-card" style="max-width:620px;">
+    <p class="hero-kicker">Welcome Back</p>
+    <h1 class="headline">Sign In</h1>
+    <p class="subtle" style="margin-top:0.45rem;">Open your dashboard and review budget drift in real time.</p>
 
-                <form method="post">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label class="form-label">Username</label>
-                        <input class="form-control" type="text" name="username" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Password</label>
-                        <input class="form-control" type="password" name="password" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">Login</button>
-
-                </form>
-                <hr>
-                <p class="text-center">Don't have an account? <a href="{% url 'register' %}">Register</a></p>
-            </div>
+    <form method="post" class="form-grid" style="margin-top:1rem;">
+        {% csrf_token %}
+        <p>
+            <label for="id_username">Username</label>
+            <input id="id_username" type="text" name="username" required>
+        </p>
+        <p>
+            <label for="id_password">Password</label>
+            <input id="id_password" type="password" name="password" required>
+        </p>
+        <div style="display:flex; gap:0.6rem; flex-wrap:wrap; margin-top:0.35rem;">
+            <button type="submit" class="btn-main">Login</button>
+            <a class="btn-chip" href="{% url 'register' %}">Register</a>
         </div>
-    </div>
-</div>
+    </form>
+</section>
 {% endblock %}

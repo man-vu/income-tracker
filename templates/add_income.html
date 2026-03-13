@@ -1,17 +1,19 @@
 {% extends "base.html" %}
 
 {% block content %}
+<section class="panel hero-card auth-card">
+    <p class="hero-kicker">Income Entry</p>
+    <h1 class="headline">Record New Income</h1>
+    <p class="subtle" style="margin-top:0.45rem;">Capture each income stream to improve forecast reliability and savings tracking.</p>
 
-<h2>Add Income</h2>
-
-<form method="POST">
-
-{% csrf_token %}
-
-{{ form.as_p }}
-
-<button class="btn btn-success">Save</button>
-
-</form>
+    <form method="post" class="form-grid" style="margin-top:1rem;">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <div style="display:flex; gap:0.6rem; flex-wrap:wrap; margin-top:0.35rem;">
+            <button class="btn-main" type="submit">Save Income</button>
+            <a class="btn-chip" href="{% url 'dashboard' %}">Back to Dashboard</a>
+        </div>
+    </form>
+</section>
 
 {% endblock %}

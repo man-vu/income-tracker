@@ -1,9 +1,17 @@
 {% extends 'base.html' %}
 {% block content %}
-<h2>Create Account</h2>
-<form method="post">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button class="btn btn-success">Register</button>
-</form>
+<section class="panel hero-card auth-card">
+    <p class="hero-kicker">Join SmartSpend</p>
+    <h1 class="headline">Create Your Account</h1>
+    <p class="subtle" style="margin-top:0.45rem;">Start tracking, forecasting, and managing your spending behavior in one control room.</p>
+
+    <form method="post" class="form-grid" style="margin-top:1rem;">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <div style="display:flex; gap:0.6rem; flex-wrap:wrap; margin-top:0.35rem;">
+            <button class="btn-main" type="submit">Register</button>
+            <a class="btn-chip" href="/accounts/login/">I already have an account</a>
+        </div>
+    </form>
+</section>
 {% endblock %}

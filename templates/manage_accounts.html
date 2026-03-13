@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel hero-card">
+    <p class="hero-kicker">Account Metadata</p>
+    <h1 class="headline">Accounts</h1>
+    <p class="subtle" style="margin-top:0.45rem;">Map transactions to checking, savings, credit, or cash sources for cleaner analytics.</p>
+
+    <div class="duo" style="margin-top:1rem;">
+        <div class="panel">
+            <h2 style="font-family:'Syne', sans-serif; font-size:1.45rem;">Add Account</h2>
+            <form method="post" class="form-grid" style="margin-top:0.7rem;">
+                {% csrf_token %}
+                {{ form.as_p }}
+                <button class="btn-main" type="submit">Save Account</button>
+            </form>
+        </div>
+
+        <div class="panel">
+            <h2 style="font-family:'Syne', sans-serif; font-size:1.45rem;">Current Accounts</h2>
+            <div class="table-wrap" style="margin-top:0.7rem;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Institution</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for account in accounts %}
+                        <tr>
+                            <td>{{ account.name }}</td>
+                            <td>{{ account.get_account_type_display }}</td>
+                            <td>{{ account.institution|default:'-' }}</td>
+                            <td>
+                                <form method="post" action="{% url 'delete_account' account.id %}">
+                                    {% csrf_token %}
+                                    <button class="btn-danger-lite" type="submit">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4">No accounts added yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
