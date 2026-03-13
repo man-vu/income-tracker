@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyc
+*.pyd
+*.pdb
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Django
+db.sqlite3
+*.log
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# VS Code
+.vscode/
+
+# Migrations
+tracker/migrations/__pycache__/
+
+# Other
+tracker/migrations/*.py
+*.swp
+*.bak
+*.tmp
+
+# Ignore local settings
+income_tracker/__pycache__/
+
+# Ignore static and media files (if used)
+static/
+media/
+
+# Ignore Django migration scripts
+tracker/migrations/*.py
+
+*/__pycache__/
