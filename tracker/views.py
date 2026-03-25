@@ -1,260 +1,197 @@
-from calendar import month_name
-from datetime import date
+import csv
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-from django.contrib import messages
-from django.contrib.auth import authenticate, login
-from django.contrib.auth.decorators import login_required
 from django.conf import settings
+from django.contrib import messages
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .forms import AccountForm, CategoryBudgetForm, ExpenseForm, GoalForm, IncomeForm, RegisterForm
-from .models import Account, CategoryBudget, Expense, Goal, Income
-from .services import allocation_summary, cleanup_invalid_amount_rows, detect_anomalies, detect_budget_alerts, forecast_backtest, forecast_month_end, import_budgetwise_dataset
+from .forms import BudgetForm, ExpenseForm, IncomeForm
+from .models import Budget, Expense, Income
 
 
-@login_required
+def get_dataset_user_id(request):
+    """Return the dataset user_id stored in the session, or None."""
+    uid = request.session.get("dataset_user_id")
+    return int(uid) if uid else None
+
+
+def ensure_dataset_loaded():
+    """Import the CSV dataset if the database is empty."""
+    if Income.objects.filter(dataset_user_id__isnull=False).exists():
+        return
+
+    csv_path = Path(settings.BASE_DIR) / "personal_finance_tracker_dataset.csv"
+    if not csv_path.exists():
+        return
+
+    with csv_path.open("r", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            tx_date = parse_date(row.get("date") or "")
+            category = (row.get("category") or "Uncategorized").strip().title()
+            income_type = (row.get("income_type") or "Income").strip()
+            csv_user_id = row.get("user_id", "").strip()
+
+            if tx_date is None or not csv_user_id.isdigit():
+                continue
+
+            try:
+                income_amt = Decimal(row.get("monthly_income") or "0")
+                expense_amt = Decimal(row.get("monthly_expense_total") or "0")
+            except InvalidOperation:
+                continue
+
+            uid = int(csv_user_id)
+
+            if income_amt > 0:
+                Income.objects.create(
+                    dataset_user_id=uid, amount=income_amt,
+                    source=income_type, date=tx_date,
+                )
+            if expense_amt > 0:
+                Expense.objects.create(
+                    dataset_user_id=uid, amount=expense_amt,
+                    category=category, date=tx_date,
+                )
+
+
+def select_user(request):
+    """Simple form: enter a dataset user_id to view their finances."""
+    if request.method == "POST":
+        uid = request.POST.get("user_id", "").strip()
+        if uid.isdigit():
+            ensure_dataset_loaded()
+            request.session["dataset_user_id"] = int(uid)
+            return redirect("dashboard")
+        messages.error(request, "Please enter a valid numeric user ID.")
+    return render(request, "select_user.html")
+
+
+def logout_user(request):
+    """Clear the selected user from session."""
+    request.session.flush()
+    return redirect("select_user")
+
+
 def dashboard(request):
-    cleanup_result = cleanup_invalid_amount_rows(request.user)
-    removed_total = cleanup_result["removed_income"] + cleanup_result["removed_expense"]
-    if removed_total:
-        messages.warning(request, f"Removed {removed_total} invalid transaction row(s) with malformed amounts.")
+    uid = get_dataset_user_id(request)
+    if not uid:
+        return redirect("select_user")
 
-    today = date.today()
-    latest_income_date = Income.objects.filter(user=request.user).order_by("-date").values_list("date", flat=True).first()
-    latest_expense_date = Expense.objects.filter(user=request.user).order_by("-date").values_list("date", flat=True).first()
-    latest_data_date = max([d for d in [latest_income_date, latest_expense_date] if d], default=today)
+    month = request.GET.get("month")
+    year = request.GET.get("year")
 
-    month_param = request.GET.get("month")
-    year_param = request.GET.get("year")
-    try:
-        month = int(month_param) if month_param else latest_data_date.month
-    except (TypeError, ValueError):
-        month = latest_data_date.month
-    try:
-        year = int(year_param) if year_param else latest_data_date.year
-    except (TypeError, ValueError):
-        year = latest_data_date.year
+    incomes = Income.objects.filter(dataset_user_id=uid)
+    expenses = Expense.objects.filter(dataset_user_id=uid)
 
-    incomes = Income.objects.filter(user=request.user, date__year=year, date__month=month)
-    expenses = Expense.objects.filter(user=request.user, date__year=year, date__month=month)
-    all_expenses = Expense.objects.filter(user=request.user)
+    if month and year:
+        incomes = incomes.filter(date__year=year, date__month=month)
+        expenses = expenses.filter(date__year=year, date__month=month)
 
     total_income = incomes.aggregate(Sum("amount"))["amount__sum"] or 0
     total_expense = expenses.aggregate(Sum("amount"))["amount__sum"] or 0
-    savings = total_income - total_expense
+    net_savings = total_income - total_expense
 
-    recent_incomes = incomes.order_by("-created_at")[:5]
-    recent_expenses = expenses.order_by("-created_at")[:5]
-
+    # Category breakdown for the pie chart
     category_data = expenses.values("category").annotate(total=Sum("amount"))
-    categories = [item["category"] for item in category_data]
-    category_totals = [float(item["total"]) for item in category_data]
+    categories = [row["category"] for row in category_data]
+    category_totals = [float(row["total"]) for row in category_data]
 
-    budgets = CategoryBudget.objects.filter(user=request.user).order_by("category")
-    spend_by_category = {item["category"]: item["total"] for item in category_data}
-    budget_alerts = detect_budget_alerts(spend_by_category, budgets)
-    anomalies = detect_anomalies(all_expenses)
-    forecast = forecast_month_end(expenses, year, month)
-    backtest = forecast_backtest(all_expenses)
-    allocations = allocation_summary(expenses, budgets)
-
-    goals = Goal.objects.filter(user=request.user).order_by("deadline")
-    goal_rows = []
-    for goal in goals:
-        progress_pct = 0
-        if goal.target_amount:
-            progress_pct = float(goal.current_amount / goal.target_amount * 100)
-        goal_rows.append(
-            {
-                "name": goal.name,
-                "current": float(goal.current_amount),
-                "target": float(goal.target_amount),
-                "monthly_goal": float(goal.monthly_goal),
-                "deadline": goal.deadline,
-                "progress_pct": min(round(progress_pct, 1), 100),
-            }
-        )
-
-    monthly_options = [{"value": idx, "label": month_name[idx]} for idx in range(1, 13)]
-    year_options = list(range(today.year - 2, today.year + 1))
+    # Budget alerts: compare spending vs limits
+    budgets = Budget.objects.filter(dataset_user_id=uid)
+    spent_by_category = {row["category"]: row["total"] for row in category_data}
+    budget_alerts = []
+    for budget in budgets:
+        spent = float(spent_by_category.get(budget.category, 0))
+        limit = float(budget.monthly_limit)
+        budget_alerts.append({
+            "category": budget.category,
+            "spent": spent,
+            "limit": limit,
+            "exceeded": spent > limit,
+        })
 
     context = {
+        "dataset_user_id": uid,
         "total_income": total_income,
         "total_expense": total_expense,
-        "savings": savings,
-        "recent_incomes": recent_incomes,
-        "recent_expenses": recent_expenses,
+        "net_savings": net_savings,
         "categories": categories,
         "category_totals": category_totals,
         "budget_alerts": budget_alerts,
-        "anomalies": anomalies,
-        "forecast": forecast,
-        "backtest": backtest,
-        "allocations": allocations,
-        "goals": goal_rows,
-        "month": month,
-        "year": year,
-        "monthly_options": monthly_options,
-        "year_options": year_options,
+        "recent_incomes": incomes.order_by("-date")[:5],
+        "recent_expenses": expenses.order_by("-date")[:5],
     }
     return render(request, "dashboard.html", context)
 
 
-@login_required
 def add_income(request):
-    if request.method == "POST":
-        form = IncomeForm(request.POST, user=request.user)
-        if form.is_valid():
-            income = form.save(commit=False)
-            income.user = request.user
-            income.save()
-            messages.success(request, "Income saved.")
-            return redirect("dashboard")
-    else:
-        form = IncomeForm(user=request.user)
+    uid = get_dataset_user_id(request)
+    if not uid:
+        return redirect("select_user")
 
+    form = IncomeForm(request.POST or None)
+    if form.is_valid():
+        income = form.save(commit=False)
+        income.dataset_user_id = uid
+        income.save()
+        messages.success(request, "Income added.")
+        return redirect("dashboard")
     return render(request, "add_income.html", {"form": form})
 
 
-@login_required
 def add_expense(request):
-    if request.method == "POST":
-        form = ExpenseForm(request.POST, user=request.user)
-        if form.is_valid():
-            expense = form.save(commit=False)
-            expense.user = request.user
-            expense.save()
-            messages.success(request, "Expense saved.")
-            return redirect("dashboard")
-    else:
-        form = ExpenseForm(user=request.user)
+    uid = get_dataset_user_id(request)
+    if not uid:
+        return redirect("select_user")
+
+    form = ExpenseForm(request.POST or None)
+    if form.is_valid():
+        expense = form.save(commit=False)
+        expense.dataset_user_id = uid
+        expense.save()
+        messages.success(request, "Expense added.")
+        return redirect("dashboard")
     return render(request, "add_expense.html", {"form": form})
 
 
-@login_required
-def manage_goals(request):
-    if request.method == "POST":
-        form = GoalForm(request.POST)
-        if form.is_valid():
-            goal = form.save(commit=False)
-            goal.user = request.user
-            goal.save()
-            messages.success(request, "Goal saved.")
-            return redirect("manage_goals")
-    else:
-        form = GoalForm()
-
-    goals = Goal.objects.filter(user=request.user).order_by("deadline")
-    return render(request, "manage_goals.html", {"form": form, "goals": goals})
-
-
-@login_required
-def delete_goal(request, goal_id):
-    goal = get_object_or_404(Goal, id=goal_id, user=request.user)
-    if request.method == "POST":
-        goal.delete()
-        messages.info(request, "Goal deleted.")
-    return redirect("manage_goals")
-
-
-@login_required
 def manage_budgets(request):
-    if request.method == "POST":
-        form = CategoryBudgetForm(request.POST)
-        if form.is_valid():
-            cleaned = form.cleaned_data
-            CategoryBudget.objects.update_or_create(
-                user=request.user,
-                category=cleaned["category"],
-                defaults={
-                    "monthly_limit": cleaned["monthly_limit"],
-                    "allocation_bucket": cleaned["allocation_bucket"],
-                },
-            )
-            messages.success(request, "Budget saved.")
-            return redirect("manage_budgets")
-    else:
-        form = CategoryBudgetForm()
+    uid = get_dataset_user_id(request)
+    if not uid:
+        return redirect("select_user")
 
-    budgets = CategoryBudget.objects.filter(user=request.user).order_by("category")
+    form = BudgetForm(request.POST or None)
+    if form.is_valid():
+        budget = form.save(commit=False)
+        budget.dataset_user_id = uid
+        budget.save()
+        messages.success(request, "Budget saved.")
+        return redirect("manage_budgets")
+    budgets = Budget.objects.filter(dataset_user_id=uid).order_by("category")
     return render(request, "manage_budgets.html", {"form": form, "budgets": budgets})
 
 
-@login_required
 def delete_budget(request, budget_id):
-    budget = get_object_or_404(CategoryBudget, id=budget_id, user=request.user)
+    uid = get_dataset_user_id(request)
+    if not uid:
+        return redirect("select_user")
+
+    budget = get_object_or_404(Budget, id=budget_id, dataset_user_id=uid)
     if request.method == "POST":
         budget.delete()
         messages.info(request, "Budget deleted.")
     return redirect("manage_budgets")
 
 
-@login_required
-def manage_accounts(request):
-    if request.method == "POST":
-        form = AccountForm(request.POST)
-        if form.is_valid():
-            account = form.save(commit=False)
-            account.user = request.user
-            account.save()
-            messages.success(request, "Account saved.")
-            return redirect("manage_accounts")
-    else:
-        form = AccountForm()
-
-    accounts = Account.objects.filter(user=request.user).order_by("name")
-    return render(request, "manage_accounts.html", {"form": form, "accounts": accounts})
+def parse_date(raw):
+    """Try multiple date formats from the dataset."""
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d-%m-%y", "%d/%m/%Y", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(raw.strip(), fmt).date()
+        except (ValueError, AttributeError):
+            continue
+    return None
 
 
-@login_required
-def delete_account(request, account_id):
-    account = get_object_or_404(Account, id=account_id, user=request.user)
-    if request.method == "POST":
-        account.delete()
-        messages.info(request, "Account deleted.")
-    return redirect("manage_accounts")
-
-
-@login_required
-def import_dataset(request):
-    if request.method != "POST":
-        return redirect("dashboard")
-
-    dataset_path = Path(settings.BASE_DIR) / "data" / "budgetwise_finance_dataset.csv"
-    clear_existing = request.POST.get("clear_existing") == "1"
-
-    result = import_budgetwise_dataset(request.user, dataset_path, clear_existing=clear_existing)
-    if result["error"]:
-        messages.error(request, result["error"])
-    else:
-        messages.success(
-            request,
-            f"Dataset imported. Income: {result['created_income']}, Expense: {result['created_expense']}, Skipped: {result['skipped']}.",
-        )
-    return redirect("dashboard")
-
-
-def register(request):
-    if request.method == "POST":
-        form = RegisterForm(request.POST)
-        if form.is_valid():
-            user = form.save()
-            login(request, user)
-            return redirect("dashboard")
-    else:
-        form = RegisterForm()
-    return render(request, "register.html", {"form": form})
-
-
-def user_login(request):
-    if request.method == "POST":
-        username = request.POST.get("username")
-        password = request.POST.get("password")
-        user = authenticate(request, username=username, password=password)
-        if user is not None:
-            login(request, user)
-            return redirect("dashboard")
-        messages.error(request, "Invalid username or password.")
-    return render(request, "login.html")

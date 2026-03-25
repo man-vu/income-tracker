@@ -1,11 +1,9 @@
-{% extends 'base.html' %}
-{% block content %}
-<section class="panel hero-card auth-card" style="max-width:620px;">
-    <p class="hero-kicker">Welcome Back</p>
-    <h1 class="headline">Sign In</h1>
-    <p class="subtle" style="margin-top:0.45rem;">Open your dashboard and review budget drift in real time.</p>
+{% extends "base.html" %}
 
-    <form method="post" class="form-grid" style="margin-top:1rem;">
+{% block content %}
+<div class="card" style="max-width: 500px; margin: 1rem auto;">
+    <h1>Login</h1>
+    <form method="post" style="margin-top: 1rem;">
         {% csrf_token %}
         <p>
             <label for="id_username">Username</label>
@@ -15,10 +13,8 @@
             <label for="id_password">Password</label>
             <input id="id_password" type="password" name="password" required>
         </p>
-        <div style="display:flex; gap:0.6rem; flex-wrap:wrap; margin-top:0.35rem;">
-            <button type="submit" class="btn-main">Login</button>
-            <a class="btn-chip" href="{% url 'register' %}">Register</a>
-        </div>
+        <button class="btn" type="submit">Login</button>
+        <a class="btn btn-link" href="{% url 'register' %}">Register</a>
     </form>
-</section>
+</div>
 {% endblock %}

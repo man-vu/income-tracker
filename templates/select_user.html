@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width: 400px; margin: 3rem auto; text-align: center;">
+    <div class="card">
+        <h1 style="margin-bottom: 0.5rem;">Personal Finance Tracker</h1>
+        <p style="color: #888; margin-bottom: 1.5rem;">Enter a User ID from the dataset to view their finances.</p>
+        <form method="post">
+            {% csrf_token %}
+            <input type="number" name="user_id" placeholder="e.g. 1584" min="1" required
+                   style="text-align: center; font-size: 1.2rem; padding: 0.7rem;">
+            <button class="btn" type="submit" style="width: 100%; margin-top: 0.8rem;">View Finances</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
